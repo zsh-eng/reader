@@ -1,5 +1,4 @@
 import JSZip from "jszip";
-import path from "path";
 import sanitizeHtml from "sanitize-html";
 
 interface ChapterContent {
@@ -51,6 +50,10 @@ interface EPUBStructure {
 	spine: Array<string>; // Ordered list of content file paths
 	manifest: Record<string, ManifestItem>; // id -> path mapping
 	contentFolder: string;
+}
+
+function pathJoin(base: string, ...paths: Array<string>): string {
+	return (base + "/" + paths.join("/")).replace(/\/+/g, "/");
 }
 
 /**
@@ -127,13 +130,17 @@ export class EPUBParser {
 		}
 
 		const domParser = new DOMParser();
+		console.log(`Parsing navigation file: ${navigationFilePath}`);
+		console.log(navigationContent);
 		const navigationDocument = domParser.parseFromString(
 			navigationContent,
 			"text/xml"
 		);
 
+		console.log(navigationDocument.querySelector("nav"));
+
 		const navElement = navigationDocument.querySelector(
-			'nav[epub\\:type="toc"]'
+			'nav[*|type="toc"], nav[epub\\:type="toc"]'
 		);
 		if (!navElement) {
 			throw new Error("No navigation element found in nav.xhtml");
@@ -376,7 +383,7 @@ export class EPUBParser {
 		}
 
 		// Load raw content
-		const fullPath = path.join(this.structure.contentFolder, manifestItem.path);
+		const fullPath = pathJoin(this.structure.contentFolder, manifestItem.path);
 		const content = await this.zip.file(fullPath)?.async("text");
 		if (!content) {
 			throw new Error(`Cannot read chapter file: ${fullPath}`);
@@ -472,7 +479,7 @@ export class EPUBParser {
 				const source = img.getAttribute("src");
 				if (!source) return null;
 
-				const absolutePath = path.join(this.structure.contentFolder, source);
+				const absolutePath = pathJoin(this.structure.contentFolder, source);
 				const imageFile = this.zip.file(absolutePath);
 				if (!imageFile) return null;
 
