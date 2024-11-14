@@ -45,7 +45,6 @@ export const Home = (): FunctionComponent => {
 
 	return (
 		<div className="w-screen h-screen flex flex-col justify-center items-center">
-			<h1>Hello World</h1>
 			<input
 				accept="application/epub+zip"
 				id="book"
@@ -55,22 +54,24 @@ export const Home = (): FunctionComponent => {
 			/>
 			{pageIndex > 0 && (
 				<Button
-					className="absolute left-0"
+					className="absolute left-4 w-24 h-24 group"
+					variant={"ghost"}
 					onClick={() => {
 						setPageIndex(pageIndex - 2);
 					}}
 				>
-					<ArrowLeftIcon />
+					<ArrowLeftIcon className="!w-16 !h-16 text-muted-foreground group-hover:text-foreground transition-all" />
 				</Button>
 			)}
 			{pageIndex < pages.length - 1 && (
 				<Button
-					className="absolute right-0"
+					className="absolute right-4 w-24 h-24 group"
+					variant={"ghost"}
 					onClick={() => {
 						setPageIndex(pageIndex + 2);
 					}}
 				>
-					<ArrowRightIcon />
+					<ArrowRightIcon className="!w-16 !h-16 text-muted-foreground group-hover:text-foreground transition-all" />
 				</Button>
 			)}
 			<div className="flex gap-8">
