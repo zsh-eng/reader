@@ -1,23 +1,41 @@
-import { useTranslation } from "react-i18next";
+import { EPUBParser } from "@/lib/epub/parser";
+import { useState, type ChangeEvent } from "react";
 import type { FunctionComponent } from "../common/types";
 
 export const Home = (): FunctionComponent => {
-	const { t, i18n } = useTranslation();
+	const [htmlContent, setHtmlContent] = useState<string>("");
 
-	const onTranslateButtonClick = async (): Promise<void> => {
-		if (i18n.resolvedLanguage === "en") {
-			await i18n.changeLanguage("es");
-		} else {
-			await i18n.changeLanguage("en");
+	const onFileChange = async (
+		event: ChangeEvent<HTMLInputElement>
+	): Promise<void> => {
+		const file = event.target.files?.[0];
+		if (!file) {
+			return;
 		}
+
+		console.log(file);
+
+		const arrayBuffer = await file.arrayBuffer();
+		const parser: EPUBParser = await EPUBParser.createParser(arrayBuffer);
+		const chapterContent = await parser.getChapterContent("s04");
+		setHtmlContent(chapterContent.html);
 	};
 
 	return (
-		<div className="bg-blue-300  font-bold w-screen h-screen flex flex-col justify-center items-center">
-			<p className="text-white text-6xl">{t("home.greeting")}</p>
-			<button type="submit" onClick={onTranslateButtonClick}>
-				translate
-			</button>
+		<div className="w-screen h-screen flex flex-col justify-center items-center">
+			<h1>Hello World</h1>
+			<input
+				accept="application/epub+zip"
+				id="book"
+				name="book"
+				type="file"
+				onChange={onFileChange}
+			/>
+
+			<article
+				dangerouslySetInnerHTML={{ __html: htmlContent }}
+				className="w-full h-full prose"
+			/>
 		</div>
 	);
 };
