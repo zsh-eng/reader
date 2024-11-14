@@ -3,7 +3,7 @@ import { EPUBParser } from "@/lib/epub/parser";
 import { HTMLToBlocksParser } from "@/lib/view/html2block";
 import { Paginator, type Page } from "@/lib/view/pagination";
 import { ArrowLeftIcon, ArrowRightIcon } from "lucide-react";
-import { useState, type ChangeEvent } from "react";
+import { useEffect, useState, type ChangeEvent } from "react";
 import type { FunctionComponent } from "../common/types";
 
 export const Home = (): FunctionComponent => {
@@ -43,6 +43,22 @@ export const Home = (): FunctionComponent => {
 		setPages(pages);
 	};
 
+	useEffect(() => {
+		const handleKeyDown = (event: KeyboardEvent): void => {
+			if (event.key === "ArrowLeft") {
+				setPageIndex(Math.max(0, pageIndex - 2));
+			}
+			if (event.key === "ArrowRight") {
+				setPageIndex(Math.min(pages.length - 1, pageIndex + 2));
+			}
+		};
+
+		window.addEventListener("keydown", handleKeyDown);
+		return (): void => {
+			window.removeEventListener("keydown", handleKeyDown);
+		};
+	}, [pageIndex, pages]);
+
 	return (
 		<div className="w-screen h-screen flex flex-col justify-center items-center">
 			<input
@@ -74,7 +90,7 @@ export const Home = (): FunctionComponent => {
 					<ArrowRightIcon className="!w-16 !h-16 text-muted-foreground group-hover:text-foreground transition-all" />
 				</Button>
 			)}
-			<div className="flex gap-8">
+			<div className="flex gap-16">
 				<article
 					dangerouslySetInnerHTML={{ __html: leftPage?.render() ?? "" }}
 					className="prose-2xl w-[600px] h-[800px] text-justify font-serif"
