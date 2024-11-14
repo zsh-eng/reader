@@ -1,4 +1,18 @@
 import JSZip from "jszip";
+import path from "path";
+import sanitizeHtml from "sanitize-html";
+
+interface ChapterContent {
+	id: string;
+	html: string;
+	text: string;
+	title?: string;
+	images: Array<{
+		src: string;
+		alt?: string;
+		data: ArrayBuffer;
+	}>;
+}
 
 // Types for EPUB structure
 interface EPUBMetadata {
@@ -45,12 +59,12 @@ interface EPUBStructure {
 export class EPUBParser {
 	private zip: JSZip;
 	private structure: EPUBStructure;
-	private readonly contentCache: Map<string, string>;
+	private readonly contentCache: Map<string, ChapterContent>;
 
 	private constructor() {
 		this.zip = null!;
 		this.structure = null!;
-		this.contentCache = new Map<string, string>();
+		this.contentCache = new Map<string, ChapterContent>();
 	}
 
 	private parseManifest(opfDocument: Document): Record<string, ManifestItem> {
@@ -341,38 +355,148 @@ export class EPUBParser {
 		return this.structure.manifest;
 	}
 
-	// async getChapterContent(chapterId: string): Promise<string> {
-	// 	// Check cache first
-	// 	if (this.contentCache.has(chapterId)) {
-	// 		return this.contentCache.get(chapterId)!;
-	// 	}
+	public getContentFolder(): string {
+		return this.structure.contentFolder;
+	}
 
-	// 	// Get file path from manifest
-	// 	const filePath = this.structure.manifest.get(chapterId);
-	// 	if (!filePath)
-	// 		throw new Error(`Chapter ${chapterId} not found in manifest`);
+	/**
+	 * Gets the content of a specific chapter by its ID
+	 * @param chapterId - The ID of the chapter from the manifest
+	 * @returns Processed chapter content including HTML, plain text, and extracted images
+	 */
+	public async getChapterContent(chapterId: string): Promise<ChapterContent> {
+		// Check cache first
+		if (this.contentCache.has(chapterId)) {
+			return this.contentCache.get(chapterId)!;
+		}
 
-	// 	// Load and cache content
-	// 	const fullPath = `${this.structure.contentFolder}/${filePath}`;
-	// 	const content = await this.zip.file(fullPath)?.async("text");
-	// 	if (!content) throw new Error(`Cannot read chapter file: ${fullPath}`);
+		const manifestItem = this.structure.manifest[chapterId];
+		if (!manifestItem) {
+			throw new Error(`Chapter ${chapterId} not found in manifest`);
+		}
 
-	// 	// Cache the content (optional - depends on memory constraints)
-	// 	this.contentCache.set(chapterId, content);
+		// Load raw content
+		const fullPath = path.join(this.structure.contentFolder, manifestItem.path);
+		const content = await this.zip.file(fullPath)?.async("text");
+		if (!content) {
+			throw new Error(`Cannot read chapter file: ${fullPath}`);
+		}
+		const processedContent = await this.processChapterContent(
+			content,
+			chapterId
+		);
 
-	// 	return content;
-	// }
+		this.contentCache.set(chapterId, processedContent);
+		return processedContent;
+	}
 
-	// clearCache() {
-	// 	this.contentCache.clear();
-	// }
+	/**
+	 * Processes raw chapter content, including HTML sanitization and image extraction
+	 */
+	private async processChapterContent(
+		rawContent: string,
+		chapterId: string
+	): Promise<ChapterContent> {
+		const domParser = new DOMParser();
+		const chapterDocument = domParser.parseFromString(rawContent, "text/html");
 
-	// // Helper method to free memory when done with the EPUB
-	// dispose() {
-	// 	this.clearCache();
-	// 	this.zip = null!;
-	// 	this.structure = null!;
-	// }
+		const title =
+			chapterDocument.querySelector("title")?.textContent || undefined;
 
-	// Implementation details for parseMetadata, parseNavigation, parseSpine, etc. would go here
+		// TODO: should we strip the head of the document?
+		const sanitizedHtml = this.sanitizeHtml(rawContent);
+		const textContent = this.extractTextContent(chapterDocument);
+		const images = await this.extractImages(chapterDocument);
+
+		return {
+			id: chapterId,
+			html: sanitizedHtml,
+			text: textContent,
+			title,
+			images,
+		};
+	}
+
+	/**
+	 * Sanitizes HTML content to prevent XSS and ensure valid HTML
+	 */
+	private sanitizeHtml(html: string): string {
+		return sanitizeHtml(html, {
+			allowedTags: sanitizeHtml.defaults.allowedTags.concat([
+				"img",
+				"figure",
+				"figcaption",
+			]),
+			allowedAttributes: {
+				...sanitizeHtml.defaults.allowedAttributes,
+				img: ["src", "alt", "title"],
+			},
+		});
+	}
+
+	/**
+	 * Extracts plain text content from HTML
+	 */
+	private extractTextContent(chapterDocument: Document): string {
+		// Remove script and style elements
+		const scripts = chapterDocument.getElementsByTagName("script");
+		const styles = chapterDocument.getElementsByTagName("style");
+
+		Array.from<HTMLElement>(scripts)
+			.concat(Array.from(styles))
+			.forEach((element) => {
+				element.parentNode?.removeChild(element);
+			});
+
+		return chapterDocument.body?.textContent?.trim() || "";
+	}
+
+	/**
+	 * Extracts and processes images from the chapter content
+	 */
+	private async extractImages(chapterDocument: Document): Promise<
+		Array<{
+			src: string;
+			alt?: string;
+			data: ArrayBuffer;
+		}>
+	> {
+		// TODO find test cases with image references
+		const imgElements = Array.from(chapterDocument.getElementsByTagName("img"));
+		const images: Array<{
+			src: string;
+			alt?: string;
+			data: ArrayBuffer;
+		} | null> = await Promise.all(
+			imgElements.map(async (img) => {
+				const source = img.getAttribute("src");
+				if (!source) return null;
+
+				const absolutePath = path.join(this.structure.contentFolder, source);
+				const imageFile = this.zip.file(absolutePath);
+				if (!imageFile) return null;
+
+				try {
+					const imageData = await imageFile.async("arraybuffer");
+					return {
+						src: absolutePath,
+						alt: img.getAttribute("alt") || undefined,
+						data: imageData,
+					};
+				} catch (error) {
+					console.warn(`Failed to extract image: ${absolutePath}`, error);
+					return null;
+				}
+			})
+		);
+
+		return images.filter(Boolean);
+	}
+
+	/**
+	 * Clears the content cache
+	 */
+	public clearCache(): void {
+		this.contentCache.clear();
+	}
 }

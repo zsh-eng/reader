@@ -145,4 +145,18 @@ describe("EPUBParser", () => {
 			properties: [],
 		});
 	});
+
+	it("should be able to read a chapter", async () => {
+		const parser = await getParser();
+		const chapter = await parser.getChapterContent("s04");
+
+		expect(chapter).toBeDefined();
+		expect(chapter.id).toBe("s04");
+		expect(chapter.title).toBe(
+			"Section IV: FAIRY STORIES—MODERN FANTASTIC TALES"
+		);
+		expect(chapter.html).toBeDefined();
+		expect(chapter.text).toBeDefined();
+		expect(chapter.images).toBeDefined();
+	});
 });
