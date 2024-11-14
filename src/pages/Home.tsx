@@ -1,9 +1,20 @@
+import { Button } from "@/components/ui/button";
 import { EPUBParser } from "@/lib/epub/parser";
+import { HTMLToBlocksParser } from "@/lib/view/html2block";
+import { Paginator, type Page } from "@/lib/view/pagination";
+import { ArrowLeftIcon, ArrowRightIcon } from "lucide-react";
 import { useState, type ChangeEvent } from "react";
 import type { FunctionComponent } from "../common/types";
 
 export const Home = (): FunctionComponent => {
-	const [htmlContent, setHtmlContent] = useState<string>("");
+	const [pages, setPages] = useState<Array<Page>>([]);
+	const [pageIndex, setPageIndex] = useState<number>(0);
+
+	const leftPage = pages[pageIndex];
+	const rightPage = pages[pageIndex + 1];
+
+	const width = 600;
+	const height = 800;
 
 	const onFileChange = async (
 		event: ChangeEvent<HTMLInputElement>
@@ -18,7 +29,18 @@ export const Home = (): FunctionComponent => {
 		const arrayBuffer = await file.arrayBuffer();
 		const parser: EPUBParser = await EPUBParser.createParser(arrayBuffer);
 		const chapterContent = await parser.getChapterContent("s04");
-		setHtmlContent(chapterContent.html);
+		const blocks = new HTMLToBlocksParser().parse(chapterContent.html);
+		const pages = new Paginator(
+			{
+				width,
+				height,
+			},
+			{
+				fontSize: 24,
+				lineHeight: 1.5,
+			}
+		).calculatePages(blocks);
+		setPages(pages);
 	};
 
 	return (
@@ -31,11 +53,36 @@ export const Home = (): FunctionComponent => {
 				type="file"
 				onChange={onFileChange}
 			/>
-
-			<article
-				dangerouslySetInnerHTML={{ __html: htmlContent }}
-				className="w-full h-full prose"
-			/>
+			{pageIndex > 0 && (
+				<Button
+					className="absolute left-0"
+					onClick={() => {
+						setPageIndex(pageIndex - 2);
+					}}
+				>
+					<ArrowLeftIcon />
+				</Button>
+			)}
+			{pageIndex < pages.length - 1 && (
+				<Button
+					className="absolute right-0"
+					onClick={() => {
+						setPageIndex(pageIndex + 2);
+					}}
+				>
+					<ArrowRightIcon />
+				</Button>
+			)}
+			<div className="flex gap-8">
+				<article
+					dangerouslySetInnerHTML={{ __html: leftPage?.render() ?? "" }}
+					className="prose-2xl w-[600px] h-[800px] text-justify font-serif"
+				/>
+				<article
+					dangerouslySetInnerHTML={{ __html: rightPage?.render() ?? "" }}
+					className="prose-2xl w-[600px] h-[800px] text-justify font-serif"
+				/>
+			</div>
 		</div>
 	);
 };
