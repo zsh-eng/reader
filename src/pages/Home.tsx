@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { EPUBParser } from "@/lib/epub/parser";
 import { HTMLToBlocksParser } from "@/lib/view/html2block";
 import { Paginator, type Page } from "@/lib/view/pagination";
@@ -14,7 +15,7 @@ export const Home = (): FunctionComponent => {
 	const rightPage = pages[pageIndex + 1];
 
 	const width = 600;
-	const height = 800;
+	const height = 720;
 
 	const onFileChange = async (
 		event: ChangeEvent<HTMLInputElement>
@@ -60,17 +61,10 @@ export const Home = (): FunctionComponent => {
 	}, [pageIndex, pages]);
 
 	return (
-		<div className="w-screen h-screen flex flex-col justify-center items-center">
-			<input
-				accept="application/epub+zip"
-				id="book"
-				name="book"
-				type="file"
-				onChange={onFileChange}
-			/>
+		<div className="w-screen h-screen flex flex-col justify-start items-center pt-16">
 			{pageIndex > 0 && (
 				<Button
-					className="absolute left-4 w-24 h-24 group"
+					className="absolute left-4 top-1/2 -translate-y-1/2 w-24 h-24 group"
 					variant={"ghost"}
 					onClick={() => {
 						setPageIndex(pageIndex - 2);
@@ -81,7 +75,7 @@ export const Home = (): FunctionComponent => {
 			)}
 			{pageIndex < pages.length - 1 && (
 				<Button
-					className="absolute right-4 w-24 h-24 group"
+					className="absolute right-4 top-1/2 -translate-y-1/2 w-24 h-24 group"
 					variant={"ghost"}
 					onClick={() => {
 						setPageIndex(pageIndex + 2);
@@ -93,11 +87,21 @@ export const Home = (): FunctionComponent => {
 			<div className="flex gap-16">
 				<article
 					dangerouslySetInnerHTML={{ __html: leftPage?.render() ?? "" }}
-					className="prose-2xl w-[600px] h-[800px] text-justify font-serif"
+					className="prose-2xl w-[600px] h-[720px] text-justify font-serif"
 				/>
 				<article
 					dangerouslySetInnerHTML={{ __html: rightPage?.render() ?? "" }}
-					className="prose-2xl w-[600px] h-[800px] text-justify font-serif"
+					className="prose-2xl w-[600px] h-[720px] text-justify font-serif"
+				/>
+			</div>
+
+			<div className="absolute bottom-4">
+				<Input
+					accept="application/epub+zip"
+					id="book"
+					name="book"
+					type="file"
+					onChange={onFileChange}
 				/>
 			</div>
 		</div>
