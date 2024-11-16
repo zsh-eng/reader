@@ -55,7 +55,7 @@ export type ContentBlock =
 	// | TextBlock
 	ImageBlock | HeadingBlock | RichTextBlock;
 
-type TextMetrics = {
+export type TextMetrics = {
 	containerWidth: number;
 	containerHeight: number;
 	fontSize: number;
@@ -381,6 +381,15 @@ export class Page {
 	public render(): string {
 		const converter = new BlocksToHTMLConverter();
 		return converter.convert(this.blocks);
+	}
+
+	public checkIfPageContainsId(id: string): boolean {
+		return this.blocks.some(
+			(block) =>
+				block.metadata.id === id ||
+				(block.type === "richtext" &&
+					block.segments.some((segment) => segment.metadata?.id === id))
+		);
 	}
 }
 
