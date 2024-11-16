@@ -2,7 +2,7 @@ import type {
 	ContentBlock,
 	HeadingBlock,
 	ImageBlock,
-	TextBlock,
+	RichTextBlock
 } from "./pagination";
 
 export class BlocksToHTMLConverter {
@@ -16,10 +16,11 @@ export class BlocksToHTMLConverter {
 				return this.convertHeading(block);
 			case "image":
 				return this.convertImage(block);
-			case "text":
-				return this.convertText(block);
+			case "richtext":
+				return this.convertRichText(block);
 			default:
 				// Exhaustive type checking
+				// eslint-disable-next-line
 				const _exhaustiveCheck: never = block;
 				throw new Error(
 					`Unknown block type: ${(_exhaustiveCheck as ContentBlock).type}`
@@ -39,10 +40,20 @@ export class BlocksToHTMLConverter {
 		return `<img width="${dimensions.width}" height="${dimensions.height}"${altAttribute}>`;
 	}
 
-	private convertText(block: TextBlock): string {
+	private convertRichText(block: RichTextBlock): string {
 		const { tag } = block.metadata;
-		const sanitizedContent = this.escapeHTML(block.content);
-		return `<${tag}>${sanitizedContent}</${tag}>`;
+
+		const content = block.segments
+			.map((segment) => {
+				let text = segment.text;
+				if (segment.style?.bold) text = `<strong>${text}</strong>`;
+				if (segment.style?.italic) text = `<em>${text}</em>`;
+				if (segment.style?.underline) text = `<u>${text}</u>`;
+				return text;
+			})
+			.join(" ");
+
+		return `<${tag}>${content}</${tag}>`;
 	}
 
 	private escapeHTML(string_: string): string {

@@ -8,6 +8,23 @@ export type TextBlock = {
 	};
 };
 
+export type RichTextSegment = {
+	text: string;
+	style?: {
+		bold?: boolean;
+		italic?: boolean;
+		underline?: boolean;
+	};
+};
+
+export type RichTextBlock = {
+	type: "richtext";
+	segments: Array<RichTextSegment>;
+	metadata: {
+		tag: string;
+	};
+};
+
 export type ImageBlock = {
 	type: "image";
 	content: ImageData;
@@ -28,7 +45,9 @@ export type HeadingBlock = {
 /**
  * Represents a block of content in a page.
  */
-export type ContentBlock = TextBlock | ImageBlock | HeadingBlock;
+export type ContentBlock =
+	// | TextBlock
+	ImageBlock | HeadingBlock | RichTextBlock;
 
 type TextMetrics = {
 	containerWidth: number;
@@ -46,7 +65,7 @@ type WithOffset<T extends ContentBlock> = T & {
 	};
 };
 
-type PageResult =
+export type PageResult =
 	| {
 			type: "page-completed";
 			remainingBlock: WithOffset<ContentBlock>;
@@ -63,10 +82,24 @@ export class Page {
 	private readonly textMetrics: TextMetrics;
 	private readonly blocks: Array<ContentBlock> = [];
 	private remainingHeight: number = 0;
+	private readonly canvasContext: OffscreenCanvasRenderingContext2D;
+	private static readonly BASE_FONT = "ui-serif";
+	private static readonly BASE_FONT_SIZE_PX = 24;
+	private static readonly LINE_HEIGHT_FACTOR = 1.5;
 
 	public constructor(textMetrics: TextMetrics) {
 		this.textMetrics = textMetrics;
 		this.remainingHeight = textMetrics.containerHeight;
+		const canvas = new OffscreenCanvas(
+			textMetrics.containerWidth,
+			textMetrics.containerHeight
+		);
+
+		const context = canvas.getContext("2d");
+		if (!context) {
+			throw new Error("Failed to create canvas context");
+		}
+		this.canvasContext = context;
 	}
 
 	public tryAddBlock(block: WithOffset<ContentBlock>): PageResult {
@@ -82,11 +115,11 @@ export class Page {
 			case "heading":
 				result = this.tryAddHeadingBlock(block);
 				break;
-			case "text":
-				result = this.tryAddTextBlock(block);
-				break;
 			case "image":
 				result = this.tryAddImageBlock(block);
+				break;
+			case "richtext":
+				result = this.tryAddRichTextBlock(block);
 				break;
 			default:
 				throw new Error(`Unknown block type`);
@@ -125,95 +158,177 @@ export class Page {
 		};
 	}
 
-	// When we carve up a text block, the content of the new block
-	// is only the content that we haven't seen yet.
-	// We keep track of the original offsets
-	private tryAddTextBlock(block: WithOffset<TextBlock>): PageResult {
-		const availableLines = Math.floor(
-			this.remainingHeight /
-				(this.textMetrics.fontSize * this.textMetrics.lineHeight)
-		);
-		const maxChars = availableLines * this.textMetrics.charsPerLine;
+	private updateCanvasFont(segment: RichTextSegment): void {
+		const fontStyle = [];
+		if (segment.style?.bold) fontStyle.push("bold");
+		if (segment.style?.italic) fontStyle.push("italic");
+		const fontString = `${fontStyle.join(" ")} ${Page.BASE_FONT_SIZE_PX}px ${Page.BASE_FONT}`;
+		this.canvasContext.font = fontString.trim();
+	}
 
-		// We must consider the case where we've already split the text block before
-		const endOffset = block.blockOffset?.end ?? 0;
+	private tryAddRichTextBlock(block: WithOffset<RichTextBlock>): PageResult {
+		const lineHeight = Page.BASE_FONT_SIZE_PX * Page.LINE_HEIGHT_FACTOR;
+		const hasSpaceLeft = this.remainingHeight >= lineHeight;
+		if (!hasSpaceLeft) {
+			return {
+				type: "page-completed",
+				remainingBlock: block,
+			};
+		}
 
-		// Case 1: Block content can fit within the maximum chars
-		if (block.content.length <= maxChars) {
-			const textHeight = this.calculateTextHeight(block.content);
-			if (textHeight > this.remainingHeight) {
-				throw new Error("SHOULD NOT OCCUR Text is too large to fit on a page");
+		// Create offscreen canvas for text measurements
+		const context = this.canvasContext;
+		const maxWidth = this.textMetrics.containerWidth;
+
+		// Track current line's words and width
+		let currentLineWidth = 0;
+
+		// wordIndex is the last uncompleted word in the current line
+		const splitBlock = (
+			segmentIndex: number,
+			wordIndex: number
+		): {
+			completedBlock: WithOffset<RichTextBlock> | null;
+			remainingBlock: WithOffset<RichTextBlock> | null;
+		} => {
+			if (segmentIndex >= block.segments.length) {
+				throw new Error("SHOULD NOT OCCUR segmentIndex is out of bounds");
 			}
 
-			const blockWithOffset = {
-				...block,
-				content: block.content,
-				blockOffset: {
-					start: endOffset,
-					end: block.content.length,
-				},
+			const segment = block.segments[segmentIndex]!;
+			const words = segment.text
+				.split(/(\s+)/)
+				.filter((word) => word.trim() !== "");
+
+			if (wordIndex >= words.length) {
+				throw new Error("SHOULD NOT OCCUR wordIndex is out of bounds");
+			}
+
+			const isAllWordsOfPreviousSegmentCompleted = wordIndex === 0;
+			const isAllSegmentsCompleted =
+				isAllWordsOfPreviousSegmentCompleted &&
+				segmentIndex === block.segments.length - 1;
+
+			if (isAllSegmentsCompleted) {
+				// ? should not happen?
+				return {
+					completedBlock: block,
+					remainingBlock: null,
+				};
+			}
+
+			if (isAllWordsOfPreviousSegmentCompleted) {
+				return {
+					completedBlock: {
+						...block,
+						segments: block.segments.slice(0, segmentIndex),
+					},
+					remainingBlock: {
+						...block,
+						segments: block.segments.slice(segmentIndex),
+					},
+				};
+			}
+
+			// TODO handle the original spaces
+			const completedSegmentHalf = {
+				...segment,
+				text: words.slice(0, wordIndex).join(" "),
+			};
+			const remainingSegmentHalf = {
+				...segment,
+				text: words.slice(wordIndex).join(" "),
 			};
 
-			this.blocks.push(blockWithOffset);
-			this.remainingHeight -= textHeight;
+			const completedSegments = [
+				...block.segments.slice(0, segmentIndex),
+				completedSegmentHalf,
+			];
+			const remainingSegments = [
+				remainingSegmentHalf,
+				...block.segments.slice(segmentIndex + 1),
+			];
 
 			return {
-				type: "page-has-space",
-				remainingHeight: this.remainingHeight,
-			};
-		}
-
-		// Case 2: Block content is greater than the maximum characters
-		// We go backwards from the maxChar to find the last whitespace character
-		let splitIndex = maxChars; // Start at maxChars instead of maxChars - 1 because the next character is the one we want to split on
-		while (splitIndex > 0 && !this.isWhitespace(block.content[splitIndex]!)) {
-			splitIndex--;
-		}
-
-		// If there is no spilt index, i.e. no whitespace characters,
-		// we have to split at the maxChars - 1 (to have space for a dash character)
-		const noWhitespaceFound = splitIndex == 0;
-		if (noWhitespaceFound) {
-			splitIndex = maxChars - 1;
-		}
-
-		const firstPart = noWhitespaceFound
-			? block.content.substring(0, splitIndex).trim() + "-"
-			: block.content.substring(0, splitIndex);
-		const remainingText = block.content.substring(splitIndex).trim();
-
-		const completedBlock: WithOffset<TextBlock> = {
-			...block,
-			content: firstPart,
-			blockOffset: {
-				start: endOffset,
-				end: endOffset + splitIndex,
-			},
-		};
-
-		this.blocks.push(completedBlock);
-		this.remainingHeight -= this.calculateTextHeight(firstPart);
-
-		return {
-			type: "page-completed",
-			remainingBlock: {
-				...block,
-				content: remainingText,
-				blockOffset: {
-					start: endOffset + splitIndex,
-					end: block.content.length,
+				completedBlock: {
+					...block,
+					segments: completedSegments,
 				},
-			},
+				remainingBlock: {
+					...block,
+					segments: remainingSegments,
+				},
+			};
 		};
-	}
 
-	private calculateTextHeight(text: string): number {
-		const lines = Math.ceil(text.length / this.textMetrics.charsPerLine);
-		return lines * this.textMetrics.fontSize * this.textMetrics.lineHeight;
-	}
+		// Process each segment of rich text
+		for (const [segmentIndex, segment] of block.segments.entries()) {
+			this.updateCanvasFont(segment);
 
-	private isWhitespace(char: string): boolean {
-		return /\s/.test(char);
+			// TODO handle line breaks
+			// TODO we should preserve the previous space in the word.
+			// and from there we can handle multiple spaces, and just trim when it's the start of a new line
+			const words = segment.text
+				.split(/(\s+)/)
+				.filter((word) => word.trim() !== "");
+
+			for (const [wordIndex, word] of words.entries()) {
+				const isStartOfLine = currentLineWidth === 0;
+				const wordToMeasure = isStartOfLine ? word : " " + word;
+				const wordWidth = context.measureText(wordToMeasure).width;
+
+				// TODO handle words that are too long to fit on a line
+				const exceedsLineWidth =
+					currentLineWidth + wordWidth > maxWidth && currentLineWidth > 0;
+
+				if (!exceedsLineWidth) {
+					currentLineWidth += wordWidth;
+					// Continue the same line
+					continue;
+				}
+
+				// Complete current line
+				this.remainingHeight -= lineHeight;
+				const hasSpaceLeft = this.remainingHeight >= lineHeight;
+				currentLineWidth = wordWidth;
+
+				if (hasSpaceLeft) {
+					// Just go to the next line for the next word
+					continue;
+				}
+
+				// We need to partition the block at this word in this segment
+				const { completedBlock, remainingBlock } = splitBlock(
+					segmentIndex,
+					wordIndex
+				);
+
+				if (!completedBlock) {
+					throw new Error("SHOULD NOT OCCUR completedBlock is null");
+				}
+
+				this.blocks.push(completedBlock);
+
+				if (!remainingBlock) {
+					throw new Error(
+						"SHOULD NOT OCCUR remainingBlock is null since we are in a valid word index"
+					);
+				}
+
+				// TODO add offsets at a later stage
+				return {
+					type: "page-completed",
+					remainingBlock: remainingBlock,
+				};
+			}
+		}
+
+		// Entire block fits within the page
+		this.blocks.push(block);
+		return {
+			type: "page-has-space",
+			remainingHeight: this.remainingHeight,
+		};
 	}
 
 	private tryAddImageBlock(block: WithOffset<ImageBlock>): PageResult {

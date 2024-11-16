@@ -2,13 +2,92 @@ import type {
 	ContentBlock,
 	HeadingBlock,
 	ImageBlock,
-	TextBlock,
+	RichTextBlock,
+	RichTextSegment,
 } from "@/lib/view/pagination";
 
+/**
+ * Converts a Block element (like <p>, <div>, <h1>, etc.) to a rich text block.
+ * A rich text block handles different kinds of styles (bold, italic, underline)
+ * and is used to represent text in a page.
+ */
+class HTMLToRichTextConverter {
+	public convert(html: string): Array<RichTextBlock> {
+		const parser = new DOMParser();
+		const document_ = parser.parseFromString(html, "text/html");
+		return this.processNodes(document_.body);
+	}
+
+	// Note in our approach, if we have nested block elements
+	// The nesting is no longer preserved.
+	public processNodes(parent: HTMLElement): Array<RichTextBlock> {
+		const blocks: Array<RichTextBlock> = [];
+		let currentBlock: RichTextBlock = this.createEmptyBlock(parent.tagName);
+
+		for (const node of Array.from(parent.childNodes)) {
+			if (node.nodeType === Node.TEXT_NODE) {
+				if (!node.textContent?.trim()) {
+					continue;
+				}
+
+				currentBlock.segments.push({
+					text: node.textContent,
+					style: this.getParentStyle(node),
+				});
+			} else if (node instanceof HTMLElement) {
+				if (this.isBlockElement(node)) {
+					if (currentBlock.segments.length) blocks.push(currentBlock);
+					blocks.push(...this.processNodes(node));
+					currentBlock = this.createEmptyBlock(parent.tagName);
+				} else {
+					currentBlock.segments.push({
+						text: node.textContent || "",
+						style: this.getElementStyle(node),
+					});
+				}
+			}
+		}
+
+		if (currentBlock.segments.length) blocks.push(currentBlock);
+		return blocks;
+	}
+
+	private getElementStyle(element: HTMLElement): RichTextSegment["style"] {
+		return {
+			bold: element.tagName === "STRONG" || element.tagName === "B",
+			italic: element.tagName === "EM" || element.tagName === "I",
+			underline: element.tagName === "U",
+		};
+	}
+
+	private getParentStyle(node: Node): RichTextSegment["style"] {
+		const parent = node.parentElement;
+		return {
+			bold: parent?.closest("strong,b") !== null,
+			italic: parent?.closest("em,i") !== null,
+			underline: parent?.closest("u") !== null,
+		};
+	}
+
+	private isBlockElement(element: HTMLElement): boolean {
+		return ["P", "DIV", "H1", "H2", "H3", "H4", "H5", "H6"].includes(
+			element.tagName
+		);
+	}
+
+	private createEmptyBlock(tag: string): RichTextBlock {
+		return {
+			type: "richtext",
+			segments: [],
+			metadata: { tag: tag.toLowerCase() },
+		};
+	}
+}
+
 export class HTMLToBlocksParser {
-	private currentTextContent: string = "";
-	private currentTag: string = "p";
+	private currentBlock: RichTextBlock | null = null;
 	private blocks: Array<ContentBlock> = [];
+	private readonly richTextConverter = new HTMLToRichTextConverter();
 
 	public parse(html: string): Array<ContentBlock> {
 		this.blocks = [];
@@ -16,64 +95,51 @@ export class HTMLToBlocksParser {
 		const document_ = parser.parseFromString(html, "text/html");
 
 		this.processNode(document_.body);
-		this.flushTextBlock(); // Ensure any remaining text is added
+		this.flushCurrentBlock(); // Ensure any remaining text is added
 		return this.blocks;
 	}
 
 	private processNode(node: Node | undefined): void {
 		if (!node) return;
 
-		// Handle text nodes
-		if (node.nodeType === Node.TEXT_NODE) {
-			// Text node
-			this.currentTextContent += node.textContent?.trim() + " ";
-			return;
+		if (node.nodeType !== Node.ELEMENT_NODE) return;
+
+		const element = node as Element;
+
+		switch (element.tagName.toLowerCase()) {
+			case "h1":
+			case "h2":
+			case "h3":
+			case "h4":
+			case "h5":
+			case "h6":
+				this.flushCurrentBlock();
+				this.handleHeading(element);
+				break;
+
+			case "img":
+				this.flushCurrentBlock();
+				this.handleImage(element);
+				break;
+
+			case "p":
+			case "div":
+			case "span":
+				// Convert the element and its children to rich text blocks
+				// eslint-disable-next-line no-case-declarations
+				const richTextBlocks = this.richTextConverter.processNodes(
+					element as HTMLElement
+				);
+				this.flushCurrentBlock();
+				this.blocks.push(...richTextBlocks);
+				break;
+
+			default:
+				// Process children for unknown elements
+				for (let index = 0; index < element.childNodes.length; index++) {
+					this.processNode(element.childNodes[index]);
+				}
 		}
-
-		// Handle element nodes
-		if (node.nodeType === Node.ELEMENT_NODE) {
-			// Element node
-			const element = node as Element;
-
-			// Flush any existing text before handling block elements
-			if (this.isBlockElement(element.tagName)) {
-				this.flushTextBlock();
-			}
-
-			switch (element.tagName.toLowerCase()) {
-				case "h1":
-				case "h2":
-				case "h3":
-				case "h4":
-				case "h5":
-				case "h6":
-					this.handleHeading(element);
-					break;
-
-				case "img":
-					this.handleImage(element);
-					break;
-
-				case "p":
-				case "div":
-				case "span":
-					// Update current tag for text blocks
-					this.currentTag = element.tagName.toLowerCase();
-					// Process children
-					for (let index = 0; index < element.childNodes.length; index++) {
-						this.processNode(element.childNodes[index]);
-					}
-					break;
-
-				default:
-					// Process children for unknown elements
-					for (let index = 0; index < element.childNodes.length; index++) {
-						this.processNode(element.childNodes[index]);
-					}
-			}
-		}
-
-		this.flushTextBlock();
 	}
 
 	private handleHeading(element: Element): void {
@@ -113,23 +179,15 @@ export class HTMLToBlocksParser {
 		this.blocks.push(imageBlock);
 	}
 
-	private flushTextBlock(): void {
-		if (this.currentTextContent.trim()) {
-			const textBlock = {
-				type: "text",
-				content: this.currentTextContent.trim(),
-				metadata: {
-					tag: this.currentTag,
-				},
-			} satisfies TextBlock;
-			this.blocks.push(textBlock);
-			this.currentTextContent = "";
-			this.currentTag = "p";
-		}
-	}
+	/**
+	 * Flushes the current block if it has segments.
+	 * Used to reset the current block after a block element is processed.
+	 */
+	private flushCurrentBlock(): void {
+		if (!this.currentBlock) return;
+		if (this.currentBlock.segments.length === 0) return;
 
-	private isBlockElement(tagName: string): boolean {
-		const blockElements = ["div", "p", "h1", "h2", "h3", "h4", "h5", "h6"];
-		return blockElements.includes(tagName.toLowerCase());
+		this.blocks.push(this.currentBlock);
+		this.currentBlock = null;
 	}
 }
