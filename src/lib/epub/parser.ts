@@ -21,6 +21,7 @@ interface EPUBMetadata {
 	creator?: string;
 	language: string;
 	identifier: string;
+	coverImageData?: ArrayBuffer;
 }
 
 /**
@@ -29,7 +30,7 @@ interface EPUBMetadata {
  * The navigation point can contain children, which represent sub-sections of the parent.
  * For example, Chapter 2 -> Section 2.1 -> Subsection 2.1.1
  */
-interface NavPoint {
+export interface NavPoint {
 	id: string;
 	label: string;
 	src: string;
@@ -195,7 +196,10 @@ export class EPUBParser {
 		return navigationPoints;
 	}
 
-	private parseMetadata(opfDocument: Document): EPUBMetadata {
+	private parseMetadata(
+		opfDocument: Document,
+		coverImageData?: ArrayBuffer
+	): EPUBMetadata {
 		const metadataElement = opfDocument.querySelector("metadata");
 		if (!metadataElement) throw new Error("No metadata found in OPF");
 
@@ -289,6 +293,7 @@ export class EPUBParser {
 			creator: creators.join("; "),
 			language: getDC("language"),
 			identifier: getDC("identifier"),
+			coverImageData,
 		};
 	}
 
@@ -341,10 +346,21 @@ export class EPUBParser {
 		);
 		if (!navFile) throw new Error("No navigation file found in manifest");
 		const navFilePath = navFile.path;
-		if (!navFilePath) throw new Error("No navigation file path found in manifest");
+		if (!navFilePath)
+			throw new Error("No navigation file path found in manifest");
+
+		const coverImageFile = Object.values(manifest).find((item) =>
+			item.properties?.includes("cover-image")
+		);
+		const coverImagePath = coverImageFile?.path;
+		const coverImageData = coverImagePath
+			? await this.zip
+					.file(pathJoin(contentFolder, coverImagePath))
+					?.async("arraybuffer")
+			: undefined;
 
 		return {
-			metadata: this.parseMetadata(opfDocument),
+			metadata: this.parseMetadata(opfDocument, coverImageData),
 			navigation: await this.parseNavigation(contentFolder, navFilePath),
 			spine: this.parseSpine(opfDocument),
 			manifest,
@@ -485,10 +501,7 @@ export class EPUBParser {
 				const source = img.getAttribute("src");
 				if (!source) return null;
 
-				const absolutePath = pathJoin(
-					this.structure.contentFolder,
-					source
-				);
+				const absolutePath = pathJoin(this.structure.contentFolder, source);
 
 				const imageFile = this.zip.file(absolutePath);
 				if (!imageFile) {
