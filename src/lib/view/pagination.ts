@@ -54,7 +54,6 @@ type TextMetrics = {
 	containerHeight: number;
 	fontSize: number;
 	lineHeight: number;
-	charsPerLine: number;
 	paragraphSpacing: number;
 };
 
@@ -83,9 +82,10 @@ export class Page {
 	private readonly blocks: Array<ContentBlock> = [];
 	private remainingHeight: number = 0;
 	private readonly canvasContext: OffscreenCanvasRenderingContext2D;
+	/// TODO check if these fonts are acceptable
 	private static readonly BASE_FONT = "ui-serif";
 	private static readonly BASE_FONT_SIZE_PX = 24;
-	private static readonly LINE_HEIGHT_FACTOR = 1.5;
+	private static readonly LINE_HEIGHT_FACTOR = 5 / 3;
 
 	public constructor(textMetrics: TextMetrics) {
 		this.textMetrics = textMetrics;
@@ -205,17 +205,6 @@ export class Page {
 			}
 
 			const isAllWordsOfPreviousSegmentCompleted = wordIndex === 0;
-			const isAllSegmentsCompleted =
-				isAllWordsOfPreviousSegmentCompleted &&
-				segmentIndex === block.segments.length - 1;
-
-			if (isAllSegmentsCompleted) {
-				// ? should not happen?
-				return {
-					completedBlock: block,
-					remainingBlock: null,
-				};
-			}
 
 			if (isAllWordsOfPreviousSegmentCompleted) {
 				return {
@@ -290,9 +279,9 @@ export class Page {
 				// Complete current line
 				this.remainingHeight -= lineHeight;
 				const hasSpaceLeft = this.remainingHeight >= lineHeight;
-				currentLineWidth = wordWidth;
 
 				if (hasSpaceLeft) {
+					currentLineWidth = wordWidth;
 					// Just go to the next line for the next word
 					continue;
 				}
@@ -327,6 +316,7 @@ export class Page {
 		if (currentLineWidth > 0) {
 			this.remainingHeight -= lineHeight;
 		}
+
 		// Entire block fits within the page
 		this.blocks.push(block);
 		return {
@@ -392,8 +382,6 @@ export class Paginator {
 	private readonly containerHeight: number;
 	private readonly fontSize: number;
 	private readonly lineHeight: number;
-	private readonly charsPerLine: number;
-	private readonly pages: Array<Page> = [];
 
 	public constructor(
 		dimensions: { width: number; height: number },
@@ -403,18 +391,17 @@ export class Paginator {
 		this.containerHeight = dimensions.height;
 		this.fontSize = styling.fontSize;
 		this.lineHeight = styling.lineHeight;
-		this.charsPerLine = Math.floor(this.containerWidth / (this.fontSize * 0.5));
 	}
 
 	public calculatePages(blocks: Array<ContentBlock>): Array<Page> {
+		console.time("calculatePages");
 		const pages: Array<Page> = [];
 		const textMetrics = {
 			containerWidth: this.containerWidth,
 			containerHeight: this.containerHeight,
 			fontSize: this.fontSize,
 			lineHeight: this.lineHeight,
-			charsPerLine: this.charsPerLine,
-			paragraphSpacing: this.fontSize * this.lineHeight * 1.5,
+			paragraphSpacing: Math.ceil(this.fontSize * 4 / 3 ),
 		};
 
 		let currentPage = new Page(textMetrics);
@@ -436,6 +423,7 @@ export class Paginator {
 			pages.push(currentPage);
 		}
 
+		console.timeEnd("calculatePages");
 		return pages;
 	}
 }
