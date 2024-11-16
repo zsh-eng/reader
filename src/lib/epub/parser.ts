@@ -1,7 +1,7 @@
 import JSZip from "jszip";
 import sanitizeHtml from "sanitize-html";
 
-interface ChapterContent {
+export interface ChapterContent {
 	id: string;
 	html: string;
 	text: string;
@@ -117,10 +117,10 @@ export class EPUBParser {
 	}
 
 	private async parseNavigation(
-		contentFolder: string
+		contentFolder: string,
+		navFilePath: string
 	): Promise<Array<NavPoint>> {
-		// TODO check if it's always called nav or we have to dynamically find the name in another way
-		const navigationFilePath = `${contentFolder}/nav.xhtml`;
+		const navigationFilePath = pathJoin(contentFolder, navFilePath);
 		const navigationContent = await this.zip
 			.file(navigationFilePath)
 			?.async("text");
@@ -130,14 +130,12 @@ export class EPUBParser {
 		}
 
 		const domParser = new DOMParser();
+
 		console.log(`Parsing navigation file: ${navigationFilePath}`);
-		console.log(navigationContent);
 		const navigationDocument = domParser.parseFromString(
 			navigationContent,
 			"text/xml"
 		);
-
-		console.log(navigationDocument.querySelector("nav"));
 
 		const navElement = navigationDocument.querySelector(
 			'nav[*|type="toc"], nav[epub\\:type="toc"]'
@@ -336,12 +334,19 @@ export class EPUBParser {
 		// Get the content folder path (everything before the last slash in OPF path)
 		// Usually EPUB/
 		const contentFolder = opfPath.substring(0, opfPath.lastIndexOf("/"));
+		const manifest = this.parseManifest(opfDocument);
+
+		const navFile = Object.values(manifest).find((item) =>
+			item.properties?.includes("nav")
+		);
+		if (!navFile) throw new Error("No navigation file found in manifest");
+		const navFilePath = navFile.path;
+		if (!navFilePath) throw new Error("No navigation file path found in manifest");
 
 		return {
 			metadata: this.parseMetadata(opfDocument),
-			navigation: await this.parseNavigation(contentFolder),
+			navigation: await this.parseNavigation(contentFolder, navFilePath),
 			spine: this.parseSpine(opfDocument),
-			manifest: this.parseManifest(opfDocument),
 			contentFolder,
 		};
 	}
