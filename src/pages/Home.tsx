@@ -166,7 +166,23 @@ export const Home = (): FunctionComponent => {
 
 						<TableOfContents
 							navigation={navigation}
-							onNavigate={setSelectedChapter}
+							onNavigate={(source) => {
+								if (!parser) {
+									return
+								}
+
+								const manifestValues = Object.values(parser.getManifest());
+								const [fileName] = source.split("#");
+								const manifestItem = manifestValues.find(
+									(item) => item.path === fileName
+								);
+								
+								if (!manifestItem) {
+									return;
+								}
+
+								setSelectedChapter(manifestItem.id);
+							}}
 						/>
 					</div>
 				</div>
