@@ -25,12 +25,14 @@ export const Home = (): FunctionComponent => {
 			return;
 		}
 
-		console.log(file);
-
 		const arrayBuffer = await file.arrayBuffer();
 		const parser: EPUBParser = await EPUBParser.createParser(arrayBuffer);
-		const chapterContent = await parser.getChapterContent("s04");
-		const blocks = new HTMLToBlocksParser().parse(chapterContent.html);
+		const spine = parser.getSpine();
+
+		const firstChapter = spine[0]!;
+		const chapterContent = await parser.getChapterContent(firstChapter);	
+		// How to run debugger here?
+		const blocks = new HTMLToBlocksParser().parse(chapterContent);
 		const pages = new Paginator(
 			{
 				width,
@@ -38,7 +40,7 @@ export const Home = (): FunctionComponent => {
 			},
 			{
 				fontSize: 24,
-				lineHeight: 1.5,
+				lineHeight: 5 /3,
 			}
 		).calculatePages(blocks);
 		setPages(pages);

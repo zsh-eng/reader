@@ -2,7 +2,7 @@ import type {
 	ContentBlock,
 	HeadingBlock,
 	ImageBlock,
-	RichTextBlock
+	RichTextBlock,
 } from "./pagination";
 
 export class BlocksToHTMLConverter {
@@ -37,7 +37,8 @@ export class BlocksToHTMLConverter {
 	private convertImage(block: ImageBlock): string {
 		const { dimensions, alt } = block.metadata;
 		const altAttribute = alt ? ` alt="${this.escapeHTML(alt)}"` : "";
-		return `<img width="${dimensions.width}" height="${dimensions.height}"${altAttribute}>`;
+		const source = block.src;
+		return `<img width="${dimensions.width}" height="${dimensions.height}"${altAttribute} src="${source}" style="margin-left: auto; margin-right: auto;">`;
 	}
 
 	private convertRichText(block: RichTextBlock): string {

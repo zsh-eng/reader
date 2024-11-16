@@ -1,3 +1,4 @@
+import type { ChapterContent } from "@/lib/epub/parser";
 import type {
 	ContentBlock,
 	HeadingBlock,
@@ -84,12 +85,24 @@ class HTMLToRichTextConverter {
 	}
 }
 
+function createImageUrl(imageData: ArrayBuffer | Uint8Array): string {
+	const blob = new Blob([imageData], { type: "image/jpeg" });
+	return URL.createObjectURL(blob);
+}
+
 export class HTMLToBlocksParser {
 	private currentBlock: RichTextBlock | null = null;
 	private blocks: Array<ContentBlock> = [];
 	private readonly richTextConverter = new HTMLToRichTextConverter();
+	private imageSourceToURL: Record<string, string> = {};
 
-	public parse(html: string): Array<ContentBlock> {
+	public parse(chapterContent: ChapterContent): Array<ContentBlock> {
+		const { html, images } = chapterContent;
+		const imageSourceToURL = Object.fromEntries(
+			images.map((image) => [image.src, createImageUrl(image.data)])
+		);
+		this.imageSourceToURL = imageSourceToURL;
+
 		this.blocks = [];
 		const parser = new DOMParser();
 		const document_ = parser.parseFromString(html, "text/html");
@@ -119,7 +132,7 @@ export class HTMLToBlocksParser {
 
 			case "img":
 				this.flushCurrentBlock();
-				this.handleImage(element);
+				this.handleImage(element as HTMLImageElement);
 				break;
 
 			case "p":
@@ -159,14 +172,25 @@ export class HTMLToBlocksParser {
 		this.blocks.push(headingBlock);
 	}
 
-	private handleImage(element: Element): void {
+	private handleImage(element: HTMLImageElement): void {
 		const width = parseInt(element.getAttribute("width") || "0");
 		const height = parseInt(element.getAttribute("height") || "0");
+		// Don't access .src here as it resolves the relative URL
+		const source = element.getAttribute("src");
+		if (!source) {
+			throw new Error("SHOULD NEVER HAPPEN: Image source not found");
+		}
+
+		const imageURL = this.imageSourceToURL[source];
+		if (!imageURL) {
+			throw new Error(
+				`SHOULD NEVER HAPPEN: Image URL not found for source: ${source}`
+			);
+		}
 
 		const imageBlock = {
 			type: "image",
-			// TODO how to handle the image data?
-			content: new ImageData(width, height),
+			src: imageURL,
 			metadata: {
 				dimensions: {
 					width: width || 300, // Default width if not specified
@@ -175,6 +199,8 @@ export class HTMLToBlocksParser {
 				alt: element.getAttribute("alt") || undefined,
 			},
 		} satisfies ImageBlock;
+
+		console.log(`Creating image block: ${JSON.stringify(imageBlock, null, 2)}`);
 
 		this.blocks.push(imageBlock);
 	}

@@ -27,7 +27,7 @@ export type RichTextBlock = {
 
 export type ImageBlock = {
 	type: "image";
-	content: ImageData;
+	src: string;
 	metadata: {
 		dimensions: { width: number; height: number };
 		alt?: string;
@@ -127,6 +127,7 @@ export class Page {
 
 		// TODO temporary fix to account for the paragraph spacing
 		if (result.type === "page-has-space") {
+			// TODO: update the result accordingly
 			this.remainingHeight -= this.textMetrics.paragraphSpacing;
 		}
 
@@ -401,7 +402,7 @@ export class Paginator {
 			containerHeight: this.containerHeight,
 			fontSize: this.fontSize,
 			lineHeight: this.lineHeight,
-			paragraphSpacing: Math.ceil(this.fontSize * 4 / 3 ),
+			paragraphSpacing: Math.ceil((this.fontSize * 4) / 3),
 		};
 
 		let currentPage = new Page(textMetrics);
@@ -419,7 +420,10 @@ export class Paginator {
 		}
 
 		// Append the last page if we haven't yet
-		if (pages.length > 0 && pages[pages.length - 1] !== currentPage) {
+		if (
+			pages.length === 0 ||
+			(pages.length > 0 && pages[pages.length - 1] !== currentPage)
+		) {
 			pages.push(currentPage);
 		}
 

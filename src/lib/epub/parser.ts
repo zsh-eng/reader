@@ -347,6 +347,7 @@ export class EPUBParser {
 			metadata: this.parseMetadata(opfDocument),
 			navigation: await this.parseNavigation(contentFolder, navFilePath),
 			spine: this.parseSpine(opfDocument),
+			manifest,
 			contentFolder,
 		};
 	}
@@ -484,14 +485,20 @@ export class EPUBParser {
 				const source = img.getAttribute("src");
 				if (!source) return null;
 
-				const absolutePath = pathJoin(this.structure.contentFolder, source);
+				const absolutePath = pathJoin(
+					this.structure.contentFolder,
+					source
+				);
+
 				const imageFile = this.zip.file(absolutePath);
-				if (!imageFile) return null;
+				if (!imageFile) {
+					throw new Error(`Image file not found: ${absolutePath}`);
+				}
 
 				try {
 					const imageData = await imageFile.async("arraybuffer");
 					return {
-						src: absolutePath,
+						src: source,
 						alt: img.getAttribute("alt") || undefined,
 						data: imageData,
 					};
