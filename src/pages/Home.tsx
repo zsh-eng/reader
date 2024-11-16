@@ -1,10 +1,21 @@
 import TableOfContents from "@/components/TableOfContents";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { EPUBParser } from "@/lib/epub/parser";
 import { HTMLToBlocksParser } from "@/lib/view/html2block";
 import { Paginator, type Page } from "@/lib/view/pagination";
-import { ArrowLeftIcon, ArrowRightIcon, BookIcon } from "lucide-react";
+import {
+	ArrowLeftIcon,
+	ArrowRightIcon,
+	BookIcon,
+	PlusIcon,
+} from "lucide-react";
 import { useEffect, useState, type ChangeEvent } from "react";
 import type { FunctionComponent } from "../common/types";
 
@@ -137,7 +148,7 @@ export const Home = (): FunctionComponent => {
 
 			{selectedChapter && <BookContent />}
 			{!selectedChapter && navigation && (
-				<div className="grid grid-cols-3 max-w-6xl gap-x-12 px-8">
+				<div className="grid grid-cols-3 max-w-6xl gap-x-12 px-8 pb-16">
 					<div className="col-span-1">
 						{coverImageData && (
 							<img
@@ -161,14 +172,36 @@ export const Home = (): FunctionComponent => {
 				</div>
 			)}
 
-			<div className="absolute bottom-4">
+			<div className="absolute right-4 top-4">
 				<Input
 					accept="application/epub+zip"
+					className="hidden"
 					id="book"
 					name="book"
 					type="file"
 					onChange={onFileChange}
 				/>
+				<label htmlFor="book">
+					<TooltipProvider>
+						<Tooltip delayDuration={100}>
+							<TooltipTrigger asChild>
+								<Button
+									size={"icon"}
+									type="button"
+									variant={"ghost"}
+									onClick={() => {
+										document.getElementById("book")?.click();
+									}}
+								>
+									<PlusIcon className="!w-10 !h-10 hover:scale-110 transition-all rounded-full cursor-pointer" />
+								</Button>
+							</TooltipTrigger>
+							<TooltipContent>
+								<p>Add a book</p>
+							</TooltipContent>
+						</Tooltip>
+					</TooltipProvider>
+				</label>
 			</div>
 		</div>
 	);
