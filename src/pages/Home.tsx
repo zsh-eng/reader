@@ -102,37 +102,37 @@ export const Home = (): FunctionComponent => {
 
 	const BookContent = (): React.ReactElement => {
 		return (
-			<div className="pt-16">
+			<div className="pt-4">
 				{pageIndex > 0 && (
 					<Button
-						className="absolute left-4 top-1/2 -translate-y-1/2 w-24 h-24 group"
+						className="absolute left-2 top-1/2 -translate-y-1/2 group hover:bg-transparent"
 						variant={"ghost"}
 						onClick={() => {
 							setPageIndex(pageIndex - 2);
 						}}
 					>
-						<ArrowLeftIcon className="!w-16 !h-16 text-muted-foreground group-hover:text-foreground transition-all" />
+						<ArrowLeftIcon className="!w-14 !h-14 text-muted-foreground group-hover:text-foreground transition-all" />
 					</Button>
 				)}
 				{pageIndex < pages.length - 1 && (
 					<Button
-						className="absolute right-4 top-1/2 -translate-y-1/2 w-24 h-24 group"
+						className="absolute right-2 top-1/2 -translate-y-1/2 group hover:bg-transparent"
 						variant={"ghost"}
 						onClick={() => {
 							setPageIndex(pageIndex + 2);
 						}}
 					>
-						<ArrowRightIcon className="!w-16 !h-16 text-muted-foreground group-hover:text-foreground transition-all" />
+						<ArrowRightIcon className="!w-14 !h-14 text-muted-foreground group-hover:text-foreground transition-all" />
 					</Button>
 				)}
 				<div className="flex gap-16">
 					<article
 						dangerouslySetInnerHTML={{ __html: leftPage?.render() ?? "" }}
-						className="prose-2xl w-[600px] h-[720px] text-justify font-serif border border-black"
+						className="prose-2xl w-[600px] h-[720px] text-justify font-serif"
 					/>
 					<article
 						dangerouslySetInnerHTML={{ __html: rightPage?.render() ?? "" }}
-						className="prose-2xl w-[600px] h-[720px] text-justify font-serif border border-black"
+						className="prose-2xl w-[600px] h-[720px] text-justify font-serif"
 					/>
 				</div>
 			</div>
@@ -168,7 +168,7 @@ export const Home = (): FunctionComponent => {
 							navigation={navigation}
 							onNavigate={(source) => {
 								if (!parser) {
-									return
+									return;
 								}
 
 								const manifestValues = Object.values(parser.getManifest());
@@ -176,7 +176,7 @@ export const Home = (): FunctionComponent => {
 								const manifestItem = manifestValues.find(
 									(item) => item.path === fileName
 								);
-								
+
 								if (!manifestItem) {
 									return;
 								}
@@ -185,6 +185,29 @@ export const Home = (): FunctionComponent => {
 							}}
 						/>
 					</div>
+				</div>
+			)}
+
+			{selectedChapter && (
+				<div className="absolute left-4 top-4">
+					<Button
+						className="hover:bg-transparent hover:-translate-x-2 transition"
+						size={"icon"}
+						variant={"ghost"}
+						onClick={() => {
+							setSelectedChapter(null);
+						}}
+					>
+						<ArrowLeftIcon className="!w-10 !h-10" />
+					</Button>
+				</div>
+			)}
+
+			{selectedChapter && (
+				<div className="absolute bottom-6 left-1/2 -translate-x-1/2 text-sm">
+					<p className="text-muted-foreground">
+						Page {pageIndex / 2 + 1} of {pages.length / 2}
+					</p>
 				</div>
 			)}
 
