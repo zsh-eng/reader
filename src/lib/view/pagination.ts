@@ -323,6 +323,10 @@ export class Page {
 			}
 		}
 
+		// Check the last line that we have
+		if (currentLineWidth > 0) {
+			this.remainingHeight -= lineHeight;
+		}
 		// Entire block fits within the page
 		this.blocks.push(block);
 		return {
