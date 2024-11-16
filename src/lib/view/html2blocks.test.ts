@@ -1,10 +1,15 @@
 import { HTMLToBlocksParser } from "@/lib/view/html2block";
 import type {
 	HeadingBlock,
+	ImageBlock,
 	RichTextBlock,
 	RichTextSegment,
 } from "@/lib/view/pagination";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.stubGlobal("URL", {
+	createObjectURL: vi.fn().mockReturnValue("test.png"),
+});
 
 const sampleHTMLInput = `
 <section>
@@ -54,7 +59,12 @@ const sampleHTMLInput = `
 describe("HTMLToBlocksParser", () => {
 	it("should parse the sample HTML input", () => {
 		const parser = new HTMLToBlocksParser();
-		const blocks = parser.parse(sampleHTMLInput);
+		const blocks = parser.parse({
+			html: sampleHTMLInput,
+			id: "test",
+			text: "test",
+			images: [],
+		});
 
 		expect(blocks).toBeDefined();
 		expect(blocks.length).toBe(5);
@@ -88,7 +98,12 @@ describe("HTMLToBlocksParser", () => {
 		</section>
 		`;
 		const parser = new HTMLToBlocksParser();
-		const blocks = parser.parse(nestedHTMLInput);
+		const blocks = parser.parse({
+			html: nestedHTMLInput,
+			id: "test",
+			text: "test",
+			images: [],
+		});
 
 		expect(blocks.length).toBe(2);
 		const headingBlock = blocks[0] as HeadingBlock;
@@ -116,7 +131,12 @@ describe("HTMLToBlocksParser", () => {
 		</section>
 		`;
 		const parser = new HTMLToBlocksParser();
-		const blocks = parser.parse(multipleParagraphsInput);
+		const blocks = parser.parse({
+			html: multipleParagraphsInput,
+			id: "test",
+			text: "test",
+			images: [],
+		});
 		expect(blocks.length).toBe(5);
 		expect(blocks[0]!.type).toBe("richtext");
 		expect(blocks[1]!.type).toBe("richtext");
@@ -143,5 +163,161 @@ describe("HTMLToBlocksParser", () => {
 		const fifthRichTextBlock = blocks[4] as RichTextBlock;
 		expect(fifthRichTextBlock.segments.length).toBe(1);
 		expect(fifthRichTextBlock.segments[0]!.text).toBe("The End 2 ");
+	});
+
+	it("should parse empty sections", () => {
+		const parser = new HTMLToBlocksParser();
+		const blocks = parser.parse({
+			html: "<section></section>",
+			id: "test",
+			text: "test",
+			images: [],
+		});
+		expect(blocks.length).toBe(0);
+	});
+
+	it("should parse span in section", () => {
+		const parser = new HTMLToBlocksParser();
+		const blocks = parser.parse({
+			html: "<section><span>Hello</span></section>",
+			id: "test",
+			text: "test",
+			images: [],
+		});
+		expect(blocks.length).toBe(1);
+		const richTextBlock = blocks[0] as RichTextBlock;
+		expect(richTextBlock.segments.length).toBe(1);
+		expect(richTextBlock.segments[0]!.text).toBe("Hello");
+	});
+
+	it("should give error for text nodes in a section not wrapped in a tag", () => {
+		const parser = new HTMLToBlocksParser();
+		expect(() => parser.parse({
+			html: "<section>hello</section>",
+			id: "test",
+			text: "test",
+			images: [],
+		})).toThrow();
+	});
+
+	describe("id tags", () => {
+		it("should parse id tags for headings", () => {
+			const idInput = `<section><h1 id="test">Hello</h1></section>`;
+			const parser = new HTMLToBlocksParser();
+			const blocks = parser.parse({
+				html: idInput,
+				id: "test",
+				text: "test",
+				images: [],
+			});
+
+			expect(blocks.length).toBe(1);
+			const headingBlock = blocks[0] as HeadingBlock;
+			expect(headingBlock.metadata).toMatchObject({
+				id: "test",
+			});
+		});
+
+		it("should parse id tags for images", () => {
+			const idInput = `<section><img src="test.png" id="test" /></section>`;
+			const parser = new HTMLToBlocksParser();
+			const blocks = parser.parse({
+				html: idInput,
+				id: "test",
+				text: "test",
+				images: [{ src: "test.png", data: new ArrayBuffer(0) }],
+			});
+
+			expect(blocks.length).toBe(1);
+			const imageBlock = blocks[0] as ImageBlock;
+			expect(imageBlock.metadata).toMatchObject({
+				id: "test",
+			});
+		});
+
+		it("should parse id tags for paragraphs", () => {
+			const idInput = `<section><p id="test">Hello</p></section>`;
+			const parser = new HTMLToBlocksParser();
+			const blocks = parser.parse({
+				html: idInput,
+				id: "test",
+				text: "test",
+				images: [],
+			});
+
+			expect(blocks.length).toBe(1);
+			const richTextBlock = blocks[0] as RichTextBlock;
+			expect(richTextBlock.metadata).toMatchObject({
+				id: "test",
+			});
+		});
+
+		it("should parse id tags for sections", () => {
+			const idInput = `<section id="test"><p>Hello</p></section>`;
+			const parser = new HTMLToBlocksParser();
+			const blocks = parser.parse({
+				html: idInput,
+				id: "test",
+				text: "test",
+				images: [],
+			});
+
+			expect(blocks.length).toBe(1);
+			const richTextBlock = blocks[0] as RichTextBlock;
+			expect(richTextBlock.metadata).toMatchObject({
+				id: "test",
+			});
+		});
+
+		it("should parse id tags for inline elements", () => {
+			const idInput = `<section id="test"><p><em id="test2">Hello</em></p></section>`;
+			const parser = new HTMLToBlocksParser();
+			const blocks = parser.parse({
+				html: idInput,
+				id: "test",
+				text: "test",
+				images: [],
+			});
+
+			expect(blocks.length).toBe(1);
+			const richTextBlock = blocks[0] as RichTextBlock;
+			expect(richTextBlock.segments[0]!.metadata).toMatchObject({
+				id: "test2",
+			});
+		});
+
+		it("should not propagate id tags to children", () => {
+			const idInput = `<section id="test"><p id="test2">Hello</p></section>`;
+			const parser = new HTMLToBlocksParser();
+			const blocks = parser.parse({
+				html: idInput,
+				id: "test",
+				text: "test",
+				images: [],
+			});
+
+			expect(blocks.length).toBe(1);
+			const richTextBlock = blocks[0] as RichTextBlock;
+			expect(richTextBlock.segments[0]!.metadata).not.toMatchObject({
+				id: "test2",
+			});
+		});
+
+		it("should not propagate id tags to children in inline elements", () => {
+			const idInput = `<section id="test"><p id="test2"><span>Hello</span></p></section>`;
+			const parser = new HTMLToBlocksParser();
+			const blocks = parser.parse({
+				html: idInput,
+				id: "test",
+				text: "test",
+				images: [],
+			});
+
+			expect(blocks.length).toBe(1);
+			const richTextBlock = blocks[0] as RichTextBlock;
+			expect(richTextBlock.segments[0]!.metadata).not.toMatchObject({
+				id: "test2",
+			});
+		});
 	});
 });

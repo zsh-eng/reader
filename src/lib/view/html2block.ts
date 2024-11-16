@@ -21,9 +21,13 @@ class HTMLToRichTextConverter {
 
 	// Note in our approach, if we have nested block elements
 	// The nesting is no longer preserved.
-	public processNodes(parent: HTMLElement): Array<RichTextBlock> {
+	public processNodes(parent: HTMLElement, grandparentId?: string): Array<RichTextBlock> {
 		const blocks: Array<RichTextBlock> = [];
-		let currentBlock: RichTextBlock = this.createEmptyBlock(parent.tagName);
+		// We need grandparent id because there's no other block to attach it to
+		// if the grandparent block has no text content on its own apart from the children
+		const id = parent.getAttribute("id") ?? grandparentId;
+
+		let currentBlock: RichTextBlock = this.createEmptyBlock(parent.tagName, id);
 
 		for (const node of Array.from(parent.childNodes)) {
 			if (node.nodeType === Node.TEXT_NODE) {
@@ -34,16 +38,23 @@ class HTMLToRichTextConverter {
 				currentBlock.segments.push({
 					text: node.textContent,
 					style: this.getParentStyle(node),
+					metadata: {
+						id: id ?? undefined,
+					},
 				});
 			} else if (node instanceof HTMLElement) {
 				if (this.isBlockElement(node)) {
 					if (currentBlock.segments.length) blocks.push(currentBlock);
-					blocks.push(...this.processNodes(node));
-					currentBlock = this.createEmptyBlock(parent.tagName);
+					blocks.push(...this.processNodes(node, id));
+					currentBlock = this.createEmptyBlock(parent.tagName, id);
 				} else {
+					const id = node.getAttribute("id");
 					currentBlock.segments.push({
 						text: node.textContent || "",
 						style: this.getElementStyle(node),
+						metadata: {
+							id: id ?? undefined,
+						},
 					});
 				}
 			}
@@ -71,16 +82,16 @@ class HTMLToRichTextConverter {
 	}
 
 	private isBlockElement(element: HTMLElement): boolean {
-		return ["P", "DIV", "H1", "H2", "H3", "H4", "H5", "H6"].includes(
+		return ["P", "DIV", "H1", "H2", "H3", "H4", "H5", "H6", "SECTION"].includes(
 			element.tagName
 		);
 	}
 
-	private createEmptyBlock(tag: string): RichTextBlock {
+	private createEmptyBlock(tag: string, id?: string | null): RichTextBlock {
 		return {
 			type: "richtext",
 			segments: [],
-			metadata: { tag: tag.toLowerCase() },
+			metadata: { tag: tag.toLowerCase(), id: id ?? undefined },
 		};
 	}
 }
@@ -112,10 +123,18 @@ export class HTMLToBlocksParser {
 		return this.blocks;
 	}
 
-	private processNode(node: Node | undefined): void {
+	private processNode(node: Node | undefined, parentId?: string): void {
 		if (!node) return;
 
-		if (node.nodeType !== Node.ELEMENT_NODE) return;
+		if (node.nodeType !== Node.ELEMENT_NODE) {
+			const isWhiteSpaceOnly = node.textContent?.trim() === "";
+			if (!isWhiteSpaceOnly) {
+				throw new Error("All text nodes in sections should be wrapped in another element")
+			}
+			// We skip through whitespace-only text nodes, as whitespace in HTML
+			// can sometimes end up as text nodes
+			return;
+		};
 
 		const element = node as Element;
 
@@ -141,7 +160,8 @@ export class HTMLToBlocksParser {
 				// Convert the element and its children to rich text blocks
 				// eslint-disable-next-line no-case-declarations
 				const richTextBlocks = this.richTextConverter.processNodes(
-					element as HTMLElement
+					element as HTMLElement,
+					parentId
 				);
 				this.flushCurrentBlock();
 				this.blocks.push(...richTextBlocks);
@@ -150,7 +170,7 @@ export class HTMLToBlocksParser {
 			default:
 				// Process children for unknown elements
 				for (let index = 0; index < element.childNodes.length; index++) {
-					this.processNode(element.childNodes[index]);
+					this.processNode(element.childNodes[index], element.getAttribute("id") ?? undefined);
 				}
 		}
 	}
@@ -160,12 +180,14 @@ export class HTMLToBlocksParser {
 			throw new Error("SHOULD NEVER HAPPEN: Invalid heading tag name");
 		}
 
+		const id = element.getAttribute("id");
 		const level = parseInt(element.tagName[1]!);
 		const headingBlock = {
 			type: "heading",
 			content: element.textContent?.trim() || "",
 			metadata: {
 				level,
+				id: id ?? undefined,
 			},
 		} satisfies HeadingBlock;
 
@@ -188,6 +210,7 @@ export class HTMLToBlocksParser {
 			);
 		}
 
+		const id = element.getAttribute("id");
 		const imageBlock = {
 			type: "image",
 			src: imageURL,
@@ -197,6 +220,7 @@ export class HTMLToBlocksParser {
 					height: height || 200, // Default height if not specified
 				},
 				alt: element.getAttribute("alt") || undefined,
+				id: id ?? undefined,
 			},
 		} satisfies ImageBlock;
 

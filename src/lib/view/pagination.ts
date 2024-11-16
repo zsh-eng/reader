@@ -15,6 +15,9 @@ export type RichTextSegment = {
 		italic?: boolean;
 		underline?: boolean;
 	};
+	metadata?: {
+		id?: string;
+	};
 };
 
 export type RichTextBlock = {
@@ -22,6 +25,7 @@ export type RichTextBlock = {
 	segments: Array<RichTextSegment>;
 	metadata: {
 		tag: string;
+		id?: string;
 	};
 };
 
@@ -31,6 +35,7 @@ export type ImageBlock = {
 	metadata: {
 		dimensions: { width: number; height: number };
 		alt?: string;
+		id?: string;
 	};
 };
 
@@ -39,6 +44,7 @@ export type HeadingBlock = {
 	content: string;
 	metadata: {
 		level: number;
+		id?: string;
 	};
 };
 
