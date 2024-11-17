@@ -2,7 +2,7 @@ import type { EPUBParser } from "@/lib/epub/parser";
 import { HTMLToBlocksParser } from "@/lib/view/html2block";
 import { Paginator, type Page } from "@/lib/view/pagination";
 
-interface BookReaderOptions {
+export interface BookReaderOptions {
 	width: number;
 	height: number;
 	fontSize: number;
