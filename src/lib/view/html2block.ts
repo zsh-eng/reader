@@ -21,7 +21,10 @@ class HTMLToRichTextConverter {
 
 	// Note in our approach, if we have nested block elements
 	// The nesting is no longer preserved.
-	public processNodes(parent: HTMLElement, grandparentId?: string): Array<RichTextBlock> {
+	public processNodes(
+		parent: HTMLElement,
+		grandparentId?: string
+	): Array<RichTextBlock> {
 		const blocks: Array<RichTextBlock> = [];
 		// We need grandparent id because there's no other block to attach it to
 		// if the grandparent block has no text content on its own apart from the children
@@ -82,9 +85,20 @@ class HTMLToRichTextConverter {
 	}
 
 	private isBlockElement(element: HTMLElement): boolean {
-		return ["P", "DIV", "H1", "H2", "H3", "H4", "H5", "H6", "SECTION"].includes(
-			element.tagName
-		);
+		return [
+			"P",
+			"DIV",
+			"H1",
+			"H2",
+			"H3",
+			"H4",
+			"H5",
+			"H6",
+			"SECTION",
+			"OL",
+			"UL",
+			"LI",
+		].includes(element.tagName);
 	}
 
 	private createEmptyBlock(tag: string, id?: string | null): RichTextBlock {
@@ -129,12 +143,14 @@ export class HTMLToBlocksParser {
 		if (node.nodeType !== Node.ELEMENT_NODE) {
 			const isWhiteSpaceOnly = node.textContent?.trim() === "";
 			if (!isWhiteSpaceOnly) {
-				throw new Error("All text nodes in sections should be wrapped in another element")
+				throw new Error(
+					"All text nodes in sections should be wrapped in another element"
+				);
 			}
 			// We skip through whitespace-only text nodes, as whitespace in HTML
 			// can sometimes end up as text nodes
 			return;
-		};
+		}
 
 		const element = node as Element;
 
@@ -157,6 +173,8 @@ export class HTMLToBlocksParser {
 			case "p":
 			case "div":
 			case "span":
+			case "ol":
+			case "ul":
 				// Convert the element and its children to rich text blocks
 				// eslint-disable-next-line no-case-declarations
 				const richTextBlocks = this.richTextConverter.processNodes(
@@ -170,7 +188,10 @@ export class HTMLToBlocksParser {
 			default:
 				// Process children for unknown elements
 				for (let index = 0; index < element.childNodes.length; index++) {
-					this.processNode(element.childNodes[index], element.getAttribute("id") ?? undefined);
+					this.processNode(
+						element.childNodes[index],
+						element.getAttribute("id") ?? undefined
+					);
 				}
 		}
 	}

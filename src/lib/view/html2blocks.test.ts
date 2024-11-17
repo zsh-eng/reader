@@ -319,5 +319,32 @@ describe("HTMLToBlocksParser", () => {
 				id: "test2",
 			});
 		});
+
+		it('should have id tag for div nested in section', () => {
+			const idInput = `
+			<section id="pgepubid00492">
+				<section id="pgepubid00498">
+					<div class="center"><span epub:type="pagebreak" title="171" id="Page_171">171</span></div>
+					<h3>INTRODUCTORY</h3>
+				</section>
+			<section id="pgepubid00499">
+			`;
+			const parser = new HTMLToBlocksParser();
+			const blocks = parser.parse({
+				html: idInput,
+				id: "test",
+				text: "test",
+				images: [],
+			});
+
+			expect(blocks.length).toBe(2);
+			const richTextBlock = blocks[0] as RichTextBlock;
+			expect(richTextBlock.metadata).toMatchObject({
+				id: "pgepubid00498",
+			});
+			expect(richTextBlock.segments[0]!.metadata).toMatchObject({
+				id: "Page_171",
+			});
+		});
 	});
 });
