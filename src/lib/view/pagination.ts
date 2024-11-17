@@ -17,6 +17,14 @@ export type RichTextSegment = {
 	};
 	metadata?: {
 		id?: string;
+		/**
+		 * Indicates that the segment was split and continues on the next page
+		 */
+		continuesOnNextPage?: boolean;
+		/**
+		 * Indicates that the segment was split and continues from the previous page
+		 */
+		continuesFromPreviousPage?: boolean;
 	};
 };
 
@@ -232,10 +240,18 @@ export class Page {
 			const completedSegmentHalf = {
 				...segment,
 				text: words.slice(0, wordIndex).join(" "),
+				metadata: {
+					...segment.metadata,
+					continuesOnNextPage: true,
+				},
 			};
 			const remainingSegmentHalf = {
 				...segment,
 				text: words.slice(wordIndex).join(" "),
+				metadata: {
+					...segment.metadata,
+					continuesFromPreviousPage: true,
+				},
 			};
 
 			const completedSegments = [

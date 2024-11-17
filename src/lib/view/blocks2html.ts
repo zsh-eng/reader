@@ -53,8 +53,13 @@ export class BlocksToHTMLConverter {
 				return text;
 			})
 			.join(" ");
+		const lastSegmentContinuesOnNextPage =
+			block.segments.at(-1)?.metadata?.continuesOnNextPage;
+		const lastSegmentContinuesOnNextPageAttribute = lastSegmentContinuesOnNextPage
+			? 'style="text-align-last: justify;"'
+			: "";
 
-		return `<${tag}>${content}</${tag}>`;
+		return `<${tag} ${lastSegmentContinuesOnNextPageAttribute}>${content}</${tag}>`;
 	}
 
 	private escapeHTML(string_: string): string {

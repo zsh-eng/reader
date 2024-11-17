@@ -146,11 +146,11 @@ export const Home = (): FunctionComponent => {
 				<div className="flex gap-16">
 					<article
 						dangerouslySetInnerHTML={{ __html: leftPage?.render() ?? "" }}
-						className="prose-2xl w-[600px] h-[720px] text-justify [text-align-last:justify] font-serif"
+						className="prose-2xl w-[600px] h-[720px] text-justify font-serif"
 					/>
 					<article
 						dangerouslySetInnerHTML={{ __html: rightPage?.render() ?? "" }}
-						className="prose-2xl w-[600px] h-[720px] text-justify [text-align-last:justify] font-serif"
+						className="prose-2xl w-[600px] h-[720px] text-justify font-serif"
 					/>
 				</div>
 			</div>
