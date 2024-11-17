@@ -161,17 +161,24 @@ export class EPUBParser {
 	 */
 	private parseNavElement(
 		olElement: Element | null,
-		depth: number
+		depth: number,
+		currentOrder: number = 0
 	): Array<NavPoint> {
 		if (!olElement) return [];
 
 		const listElementChildren = Array.from(olElement.children);
 
-		let order = 0;
+		let order = currentOrder;
 		const navigationPoints: Array<NavPoint> = listElementChildren.flatMap(
 			(listElement) => {
-				const link = listElement.querySelector("a");
-				if (!link) return [];
+				const link = Array.from(listElement.children).find((child) => child.tagName === "a");
+				if (!link) {
+					// If no direct child, process the nested <ol> at the same depth
+					// This is because sometimes the <ol> doesn't have a direct <a> child
+					// But we still want to include the nested <ol> in the navigation
+					const subOlElement = listElement.querySelector("ol");
+					return this.parseNavElement(subOlElement, depth, order);
+				}
 
 				order++;
 				const label = link.textContent?.trim() || "";

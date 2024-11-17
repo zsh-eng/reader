@@ -52,7 +52,7 @@ describe("EPUBParser", () => {
 
 		const children = navPoint.children;
 		expect(children).toBeDefined();
-		expect(children).toHaveLength(11);
+		expect(children).toHaveLength(17);
 
 		const child = children[0]!;
 		expect(child).toBeDefined();
@@ -67,6 +67,16 @@ describe("EPUBParser", () => {
 		expect(secondChild.label).toBe("INTRODUCTORY");
 		expect(secondChild.src).toBe("s04.xhtml#pgepubid00498");
 		expect(secondChild.order).toBe(2);
+
+		// Nested children
+		const thirdChild = children[2]!;
+		expect(thirdChild).toBeDefined();
+		expect(thirdChild.id).toBe("nav-2-3");
+		expect(thirdChild.label).toBe("190 A FOUR-LEAVED CLOVER");
+		expect(thirdChild.src).toBe("s04.xhtml#pgepubid00503");
+		expect(thirdChild.order).toBe(3);
+		expect(thirdChild.children).toBeDefined();
+		expect(thirdChild.children).toHaveLength(4);
 	});
 
 	it("should parse spine correctly", async () => {
