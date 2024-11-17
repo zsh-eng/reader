@@ -1,6 +1,7 @@
 import { readFile } from "fs/promises";
 import { join } from "path";
 import { describe, expect, it } from "vitest";
+import type { NavPoint } from "./parser";
 import { EPUBParser } from "./parser";
 
 describe("EPUBParser", () => {
@@ -77,6 +78,15 @@ describe("EPUBParser", () => {
 		expect(thirdChild.order).toBe(3);
 		expect(thirdChild.children).toBeDefined();
 		expect(thirdChild.children).toHaveLength(4);
+
+		// Check that there are no duplicate IDs
+		const ids = new Set<string>();
+		const walkNavPoint = (navPoint: NavPoint): void => {
+			expect(ids.has(navPoint.id)).toBe(false);
+			ids.add(navPoint.id);
+			navPoint.children?.forEach(walkNavPoint);
+		};
+		navigation.forEach(walkNavPoint);
 	});
 
 	it("should parse spine correctly", async () => {

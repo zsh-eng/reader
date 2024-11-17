@@ -177,7 +177,9 @@ export class EPUBParser {
 					// This is because sometimes the <ol> doesn't have a direct <a> child
 					// But we still want to include the nested <ol> in the navigation
 					const subOlElement = listElement.querySelector("ol");
-					return this.parseNavElement(subOlElement, depth, order);
+					const result = this.parseNavElement(subOlElement, depth, order);
+					order += result.length;
+					return result;
 				}
 
 				order++;
