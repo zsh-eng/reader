@@ -459,7 +459,12 @@ export class EPUBParser {
 			allowedAttributes: {
 				...sanitizeHtml.defaults.allowedAttributes,
 				img: ["src", "alt", "title"],
+				"*": ["id"],
 			},
+			exclusiveFilter: (node) => {
+				return node.tag === "title";
+			},
+			nonTextTags: ['title']
 		});
 	}
 
