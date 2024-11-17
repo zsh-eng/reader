@@ -27,6 +27,15 @@ export default defineConfig({
 	server: {
 		host: true,
 		strictPort: true,
+		// For SQLite WASM to work with OPFS
+		// https://github.com/sqlite/sqlite-wasm?tab=readme-ov-file#usage-with-vite
+		headers: {
+			"Cross-Origin-Opener-Policy": "same-origin",
+			"Cross-Origin-Embedder-Policy": "require-corp",
+		},
+	},
+	optimizeDeps: {
+		exclude: ["@sqlite.org/sqlite-wasm"],
 	},
 	test: {
 		environment: "jsdom",
