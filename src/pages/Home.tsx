@@ -33,6 +33,8 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
 export const Home = (): FunctionComponent => {
 	const [parser, setParser] = useState<EPUBParser | null>(null);
 	const [selectedChapter, setSelectedChapter] = useState<string | null>(null);
+	const [targetId, setTargetId] = useState<string | null>(null);
+
 	const [pages, setPages] = useState<Array<Page>>([]);
 	const [pageIndex, setPageIndex] = useState<number>(0);
 	const navigation = parser?.getNavigation();
@@ -69,6 +71,22 @@ export const Home = (): FunctionComponent => {
 
 		void updatePages();
 	}, [selectedChapter, parser]);
+
+	useEffect(() => {
+		if (!targetId || pages.length === 0) return;
+
+		// Find the page containing the target element
+		const targetPageIndex = pages.findIndex((page) =>
+			page.checkIfPageContainsId(targetId)
+		);
+
+		if (targetPageIndex === -1) {
+			return;
+		}
+
+		setPageIndex(targetPageIndex - (targetPageIndex % 2));
+		setTargetId(null);
+	}, [pages, targetId]);
 
 	const onFileChange = async (
 		event: ChangeEvent<HTMLInputElement>
@@ -128,11 +146,11 @@ export const Home = (): FunctionComponent => {
 				<div className="flex gap-16">
 					<article
 						dangerouslySetInnerHTML={{ __html: leftPage?.render() ?? "" }}
-						className="prose-2xl w-[600px] h-[720px] text-justify font-serif"
+						className="prose-2xl w-[600px] h-[720px] text-justify [text-align-last:justify] font-serif"
 					/>
 					<article
 						dangerouslySetInnerHTML={{ __html: rightPage?.render() ?? "" }}
-						className="prose-2xl w-[600px] h-[720px] text-justify font-serif"
+						className="prose-2xl w-[600px] h-[720px] text-justify [text-align-last:justify] font-serif"
 					/>
 				</div>
 			</div>
@@ -172,7 +190,7 @@ export const Home = (): FunctionComponent => {
 								}
 
 								const manifestValues = Object.values(parser.getManifest());
-								const [fileName] = source.split("#");
+								const [fileName, id] = source.split("#");
 								const manifestItem = manifestValues.find(
 									(item) => item.path === fileName
 								);
@@ -182,6 +200,9 @@ export const Home = (): FunctionComponent => {
 								}
 
 								setSelectedChapter(manifestItem.id);
+								if (id) {
+									setTargetId(id);
+								}
 							}}
 						/>
 					</div>
