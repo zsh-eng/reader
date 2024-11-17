@@ -88,8 +88,10 @@ export class Page {
 	private readonly blocks: Array<ContentBlock> = [];
 	private remainingHeight: number = 0;
 	private readonly canvasContext: OffscreenCanvasRenderingContext2D;
+	private numRichTextLines: number = 0;
 	/// TODO check if these fonts are acceptable
-	private static readonly BASE_FONT = "ui-serif";
+	private static readonly BASE_FONT =
+		"ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif";
 	private static readonly BASE_FONT_SIZE_PX = 24;
 	private static readonly LINE_HEIGHT_FACTOR = 5 / 3;
 
@@ -285,6 +287,7 @@ export class Page {
 
 				// Complete current line
 				this.remainingHeight -= lineHeight;
+				this.numRichTextLines++;
 				const hasSpaceLeft = this.remainingHeight >= lineHeight;
 
 				if (hasSpaceLeft) {
