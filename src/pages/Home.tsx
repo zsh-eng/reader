@@ -8,8 +8,8 @@ import {
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { EPUBParser } from "@/lib/epub/parser";
-import { HTMLToBlocksParser } from "@/lib/view/html2block";
-import { Paginator, type Page } from "@/lib/view/pagination";
+import { BookReader } from "@/lib/reader/book-reader";
+import type { Page } from "@/lib/view/pagination";
 import {
 	ArrowLeftIcon,
 	ArrowRightIcon,
@@ -31,62 +31,22 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
 }
 
 export const Home = (): FunctionComponent => {
-	const [parser, setParser] = useState<EPUBParser | null>(null);
-	const [selectedChapter, setSelectedChapter] = useState<string | null>(null);
-	const [targetId, setTargetId] = useState<string | null>(null);
+	const [reader, setReader] = useState<BookReader | null>(null);
 
+	const [selectedChapter, setSelectedChapter] = useState<string | null>(null);
 	const [pages, setPages] = useState<Array<Page>>([]);
 	const [pageIndex, setPageIndex] = useState<number>(0);
-	const navigation = parser?.getNavigation();
-	const title = parser?.getMetadata()?.title ?? "Books";
-	const coverImageData = parser?.getMetadata()?.coverImageData;
-	const author = parser?.getMetadata()?.creator ?? "";
+
+	const navigation = reader?.getNavigation();
+	const title = reader?.getMetadata()?.title ?? "Books";
+	const coverImageData = reader?.getMetadata()?.coverImageData;
+	const author = reader?.getMetadata()?.creator ?? "";
 
 	const leftPage = pages[pageIndex];
 	const rightPage = pages[pageIndex + 1];
 
 	const width = 600;
 	const height = 720;
-
-	useEffect(() => {
-		if (!selectedChapter || !parser) {
-			return;
-		}
-
-		const updatePages = async (): Promise<void> => {
-			const chapterContent = await parser.getChapterContent(selectedChapter);
-			const blocks = new HTMLToBlocksParser().parse(chapterContent);
-			const pages = new Paginator(
-				{
-					width,
-					height,
-				},
-				{
-					fontSize: 24,
-					lineHeight: 5 / 3,
-				}
-			).calculatePages(blocks);
-			setPages(pages);
-		};
-
-		void updatePages();
-	}, [selectedChapter, parser]);
-
-	useEffect(() => {
-		if (!targetId || pages.length === 0) return;
-
-		// Find the page containing the target element
-		const targetPageIndex = pages.findIndex((page) =>
-			page.checkIfPageContainsId(targetId)
-		);
-
-		if (targetPageIndex === -1) {
-			return;
-		}
-
-		setPageIndex(targetPageIndex - (targetPageIndex % 2));
-		setTargetId(null);
-	}, [pages, targetId]);
 
 	const onFileChange = async (
 		event: ChangeEvent<HTMLInputElement>
@@ -98,8 +58,13 @@ export const Home = (): FunctionComponent => {
 
 		const arrayBuffer = await file.arrayBuffer();
 		const parser: EPUBParser = await EPUBParser.createParser(arrayBuffer);
-
-		setParser(parser);
+		const reader = new BookReader(parser, {
+			width,
+			height,
+			fontSize: 24,
+			lineHeight: 5 / 3,
+		});
+		setReader(reader);
 	};
 
 	useEffect(() => {
@@ -184,25 +149,20 @@ export const Home = (): FunctionComponent => {
 
 						<TableOfContents
 							navigation={navigation}
-							onNavigate={(source) => {
-								if (!parser) {
+							onNavigate={async (source) => {
+								if (!reader) {
 									return;
 								}
 
-								const manifestValues = Object.values(parser.getManifest());
-								const [fileName, id] = source.split("#");
-								const manifestItem = manifestValues.find(
-									(item) => item.path === fileName
-								);
-
-								if (!manifestItem) {
+								const { pages, pageIndex } = await reader.navigateToId(source);
+								if (pageIndex === -1) {
+									console.error("Failed to navigate to ID", source);
 									return;
 								}
 
-								setSelectedChapter(manifestItem.id);
-								if (id) {
-									setTargetId(id);
-								}
+								setPages(pages);
+								setPageIndex(pageIndex);
+								setSelectedChapter(source);
 							}}
 						/>
 					</div>
